@@ -10,6 +10,49 @@ import {
   type OrderWithItems
 } from "@shared/schema";
 
+// Tipo modificado para Game que acepta que platforms pueda ser null
+export type GenericGame = {
+  id: number;
+  title: string;
+  description: string;
+  price: number;
+  discountedPrice: number | null;
+  imageUrl: string;
+  rating: number | null;
+  categoryId: number;
+  isFeatured: boolean | null;
+  isNewRelease: boolean | null;
+  isTopRated: boolean | null;
+  platforms: number[] | null;
+  releaseDate: Date | null;
+};
+
+// Tipo modificado de CartItemWithGame que usa GenericGame
+export type GenericCartItemWithGame = {
+  id: number;
+  userId: number;
+  gameId: number;
+  quantity: number;
+  game: GenericGame;
+};
+
+// Tipo modificado para OrderWithItems que usa GenericGame
+export type GenericOrderWithItems = {
+  id: number;
+  userId: number;
+  total: number;
+  status: string;
+  createdAt: Date | null;
+  items: {
+    id: number;
+    orderId: number;
+    gameId: number;
+    quantity: number;
+    price: number;
+    game: GenericGame;
+  }[];
+};
+
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -18,14 +61,14 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   // Game operations
-  getGames(): Promise<Game[]>;
-  getGame(id: number): Promise<Game | undefined>;
-  getGamesByCategory(categoryId: number): Promise<Game[]>;
-  getFeaturedGames(): Promise<Game[]>;
-  getNewReleases(): Promise<Game[]>;
-  getTopRatedGames(): Promise<Game[]>;
-  searchGames(query: string): Promise<Game[]>;
-  createGame(game: InsertGame): Promise<Game>;
+  getGames(): Promise<GenericGame[]>;
+  getGame(id: number): Promise<GenericGame | undefined>;
+  getGamesByCategory(categoryId: number): Promise<GenericGame[]>;
+  getFeaturedGames(): Promise<GenericGame[]>;
+  getNewReleases(): Promise<GenericGame[]>;
+  getTopRatedGames(): Promise<GenericGame[]>;
+  searchGames(query: string): Promise<GenericGame[]>;
+  createGame(game: InsertGame): Promise<GenericGame>;
   
   // Category operations
   getCategories(): Promise<Category[]>;
@@ -38,7 +81,7 @@ export interface IStorage {
   createPlatform(platform: InsertPlatform): Promise<Platform>;
   
   // Cart operations
-  getCartItems(userId: number): Promise<CartItemWithGame[]>;
+  getCartItems(userId: number): Promise<GenericCartItemWithGame[]>;
   getCartItem(id: number): Promise<CartItem | undefined>;
   createCartItem(cartItem: InsertCartItem): Promise<CartItem>;
   updateCartItemQuantity(id: number, quantity: number): Promise<CartItem | undefined>;
@@ -48,7 +91,7 @@ export interface IStorage {
   // Order operations
   createOrder(order: InsertOrder, orderItems: InsertOrderItem[]): Promise<Order>;
   getOrders(userId: number): Promise<Order[]>;
-  getOrder(id: number): Promise<OrderWithItems | undefined>;
+  getOrder(id: number): Promise<GenericOrderWithItems | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -283,39 +326,39 @@ export class MemStorage implements IStorage {
   }
 
   // Game operations
-  async getGames(): Promise<Game[]> {
+  async getGames(): Promise<GenericGame[]> {
     return Array.from(this.games.values());
   }
 
-  async getGame(id: number): Promise<Game | undefined> {
+  async getGame(id: number): Promise<GenericGame | undefined> {
     return this.games.get(id);
   }
 
-  async getGamesByCategory(categoryId: number): Promise<Game[]> {
+  async getGamesByCategory(categoryId: number): Promise<GenericGame[]> {
     return Array.from(this.games.values()).filter(
       (game) => game.categoryId === categoryId
     );
   }
 
-  async getFeaturedGames(): Promise<Game[]> {
+  async getFeaturedGames(): Promise<GenericGame[]> {
     return Array.from(this.games.values()).filter(
       (game) => game.isFeatured
     );
   }
 
-  async getNewReleases(): Promise<Game[]> {
+  async getNewReleases(): Promise<GenericGame[]> {
     return Array.from(this.games.values()).filter(
       (game) => game.isNewRelease
     );
   }
 
-  async getTopRatedGames(): Promise<Game[]> {
+  async getTopRatedGames(): Promise<GenericGame[]> {
     return Array.from(this.games.values()).filter(
       (game) => game.isTopRated
     );
   }
 
-  async searchGames(query: string): Promise<Game[]> {
+  async searchGames(query: string): Promise<GenericGame[]> {
     const lowercaseQuery = query.toLowerCase();
     return Array.from(this.games.values()).filter(
       (game) => game.title.toLowerCase().includes(lowercaseQuery) || 
@@ -323,7 +366,7 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async createGame(insertGame: InsertGame): Promise<Game> {
+  async createGame(insertGame: InsertGame): Promise<GenericGame> {
     const id = this.nextGameId++;
     const game: Game = { ...insertGame, id };
     this.games.set(id, game);
@@ -363,7 +406,7 @@ export class MemStorage implements IStorage {
   }
 
   // Cart operations
-  async getCartItems(userId: number): Promise<CartItemWithGame[]> {
+  async getCartItems(userId: number): Promise<GenericCartItemWithGame[]> {
     const items = Array.from(this.cartItems.values()).filter(
       (item) => item.userId === userId
     );
@@ -447,7 +490,7 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getOrder(id: number): Promise<OrderWithItems | undefined> {
+  async getOrder(id: number): Promise<GenericOrderWithItems | undefined> {
     const order = this.orders.get(id);
     if (!order) return undefined;
     

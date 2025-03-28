@@ -1,19 +1,15 @@
-import pkg from 'pg';
-const { Pool } = pkg;
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, ilike, or, sql } from 'drizzle-orm';
+import mysql from 'mysql2/promise';
 import { IStorage, GenericGame, GenericCartItemWithGame, GenericOrderWithItems } from './storage';
 import {
-  users, games, categories, platforms, cartItems, orders, orderItems,
-  type User, type InsertUser,
-  type Game, type InsertGame,
-  type Category, type InsertCategory,
-  type Platform, type InsertPlatform,
-  type CartItem, type InsertCartItem,
-  type Order, type InsertOrder,
-  type OrderItem, type InsertOrderItem,
-  type CartItemWithGame,
-  type OrderWithItems
+  User, InsertUser,
+  Game, InsertGame,
+  Category, InsertCategory,
+  Platform, InsertPlatform,
+  CartItem, InsertCartItem,
+  Order, InsertOrder,
+  OrderItem, InsertOrderItem,
+  CartItemWithGame,
+  OrderWithItems
 } from '@shared/schema';
 import {
   convertGameToGeneric,
@@ -23,26 +19,95 @@ import {
 } from './mysql-converters';
 
 export class MySQLStorage implements IStorage {
-  private db: ReturnType<typeof drizzle>;
-  private pool: Pool;
+  private pool: mysql.Pool;
 
   constructor(connectionString: string) {
-    this.pool = new Pool({ connectionString });
-    this.db = drizzle(this.pool);
+    this.pool = mysql.createPool(connectionString);
   }
 
   async initializeDatabase() {
     try {
-      console.log('Las tablas ya han sido creadas utilizando drizzle-kit push.');
-      return true;
+      // Use the raw connection to set up tables if they don't exist
+      const createTables = [
+        // Users table
+        `CREATE TABLE IF NOT EXISTS users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(255) NOT NULL UNIQUE,
+          password VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL UNIQUE,
+          name VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        // Categories table
+        `CREATE TABLE IF NOT EXISTS categories (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          icon VARCHAR(255)
+        )`,
+        // Platforms table
+        `CREATE TABLE IF NOT EXISTS platforms (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL
+        )`,
+        // Games table
+        `CREATE TABLE IF NOT EXISTS games (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NOT NULL,
+          price DOUBLE NOT NULL,
+          discounted_price DOUBLE,
+          image_url TEXT NOT NULL,
+          rating DOUBLE,
+          category_id INT NOT NULL,
+          is_featured BOOLEAN DEFAULT FALSE,
+          is_new_release BOOLEAN DEFAULT FALSE,
+          is_top_rated BOOLEAN DEFAULT FALSE,
+          platforms JSON NOT NULL,
+          release_date TIMESTAMP
+        )`,
+        // Cart items table
+        `CREATE TABLE IF NOT EXISTS cart_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          game_id INT NOT NULL,
+          quantity INT NOT NULL DEFAULT 1
+        )`,
+        // Orders table
+        `CREATE TABLE IF NOT EXISTS orders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          total DOUBLE NOT NULL,
+          status VARCHAR(255) NOT NULL DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        // Order items table
+        `CREATE TABLE IF NOT EXISTS order_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          order_id INT NOT NULL,
+          game_id INT NOT NULL,
+          quantity INT NOT NULL,
+          price DOUBLE NOT NULL
+        )`
+      ];
+
+      const connection = await this.pool.getConnection();
+      try {
+        for (const query of createTables) {
+          await connection.query(query);
+        }
+        console.log('Database tables created or already exist.');
+        return true;
+      } finally {
+        connection.release();
+      }
     } catch (error) {
-      console.error('Error al verificar las tablas:', error);
+      console.error('Error initializing database tables:', error);
       return false;
     }
   }
 
   async initializeWithSampleData() {
-    // Inicializar categorías de ejemplo
+    // Initialize categories
     const categories = [
       { name: "Acción", icon: "fire-alt" },
       { name: "Aventura", icon: "dragon" },
@@ -53,18 +118,18 @@ export class MySQLStorage implements IStorage {
       { name: "Carreras", icon: "car" },
       { name: "Indie", icon: "gamepad" }
     ];
-    
+
     for (const cat of categories) {
       await this.createCategory(cat);
     }
-    
-    // Inicializar plataformas de ejemplo
+
+    // Initialize platforms
     const platforms = ["PC", "PlayStation 5", "PlayStation 4", "Xbox Series X", "Xbox One", "Nintendo Switch"];
     for (const platform of platforms) {
       await this.createPlatform({ name: platform });
     }
-    
-    // Inicializar juegos de ejemplo
+
+    // Initialize sample games
     const games = [
       {
         title: "Starfield",
@@ -105,10 +170,9 @@ export class MySQLStorage implements IStorage {
         isTopRated: true,
         platforms: [2],
         releaseDate: new Date()
-      },
-      // Otros juegos de ejemplo...
+      }
     ];
-    
+
     for (const game of games) {
       await this.createGame(game);
     }
@@ -116,234 +180,363 @@ export class MySQLStorage implements IStorage {
 
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM users WHERE id = ?',
+        [id]
+    );
+    const users = rows as User[];
+    return users.length ? users[0] : undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM users WHERE username = ?',
+        [username]
+    );
+    const users = rows as User[];
+    return users.length ? users[0] : undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM users WHERE email = ?',
+        [email]
+    );
+    const users = rows as User[];
+    return users.length ? users[0] : undefined;
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const result = await this.db.insert(users).values(userData).returning();
-    const userId = result[0].id;
+    const [result] = await this.pool.query(
+        'INSERT INTO users (username, password, email, name) VALUES (?, ?, ?, ?)',
+        [userData.username, userData.password, userData.email, userData.name]
+    );
+    const insertResult = result as mysql.ResultSetHeader;
+    const userId = insertResult.insertId;
     return this.getUser(userId) as Promise<User>;
   }
 
   // Game operations
   async getGames(): Promise<GenericGame[]> {
-    const gamesResult = await this.db.select().from(games);
-    return convertGamesToGeneric(gamesResult);
+    const [rows] = await this.pool.query('SELECT * FROM games');
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async getGame(id: number): Promise<GenericGame | undefined> {
-    const result = await this.db.select().from(games).where(eq(games.id, id)).limit(1);
-    if (!result[0]) return undefined;
-    return convertGameToGeneric(result[0]);
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE id = ?',
+        [id]
+    );
+    const games = rows as Game[];
+    if (!games.length) return undefined;
+    return convertGameToGeneric(games[0]);
   }
 
   async getGamesByCategory(categoryId: number): Promise<GenericGame[]> {
-    const gamesResult = await this.db.select().from(games).where(eq(games.categoryId, categoryId));
-    return convertGamesToGeneric(gamesResult);
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE category_id = ?',
+        [categoryId]
+    );
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async getFeaturedGames(): Promise<GenericGame[]> {
-    const gamesResult = await this.db.select().from(games).where(eq(games.isFeatured, true));
-    return convertGamesToGeneric(gamesResult);
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE is_featured = TRUE'
+    );
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async getNewReleases(): Promise<GenericGame[]> {
-    const gamesResult = await this.db.select().from(games).where(eq(games.isNewRelease, true));
-    return convertGamesToGeneric(gamesResult);
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE is_new_release = TRUE'
+    );
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async getTopRatedGames(): Promise<GenericGame[]> {
-    const gamesResult = await this.db.select().from(games).where(eq(games.isTopRated, true));
-    return convertGamesToGeneric(gamesResult);
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE is_top_rated = TRUE'
+    );
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async searchGames(query: string): Promise<GenericGame[]> {
-    const searchPattern = `%${query}%`;
-    const gamesResult = await this.db.select().from(games).where(
-      or(
-        ilike(games.title, searchPattern),
-        ilike(games.description, searchPattern)
-      )
+    const searchQuery = `%${query}%`;
+    const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE title LIKE ? OR description LIKE ?',
+        [searchQuery, searchQuery]
     );
-    return convertGamesToGeneric(gamesResult);
+    const games = rows as Game[];
+    return convertGamesToGeneric(games);
   }
 
   async createGame(gameData: InsertGame): Promise<GenericGame> {
-    const result = await this.db.insert(games).values(gameData).returning();
-    const gameId = result[0].id;
+    const platformsJson = JSON.stringify(gameData.platforms);
+    const [result] = await this.pool.query(
+        `INSERT INTO games (
+        title, description, price, discounted_price, image_url, 
+        rating, category_id, is_featured, is_new_release, 
+        is_top_rated, platforms, release_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          gameData.title, gameData.description, gameData.price,
+          gameData.discountedPrice, gameData.imageUrl, gameData.rating,
+          gameData.categoryId, gameData.isFeatured, gameData.isNewRelease,
+          gameData.isTopRated, platformsJson, gameData.releaseDate
+        ]
+    );
+    const insertResult = result as mysql.ResultSetHeader;
+    const gameId = insertResult.insertId;
     const game = await this.getGame(gameId);
     return game as GenericGame;
   }
 
   // Category operations
   async getCategories(): Promise<Category[]> {
-    return this.db.select().from(categories);
+    const [rows] = await this.pool.query('SELECT * FROM categories');
+    return rows as Category[];
   }
 
   async getCategory(id: number): Promise<Category | undefined> {
-    const result = await this.db.select().from(categories).where(eq(categories.id, id)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM categories WHERE id = ?',
+        [id]
+    );
+    const categories = rows as Category[];
+    return categories.length ? categories[0] : undefined;
   }
 
   async createCategory(categoryData: InsertCategory): Promise<Category> {
-    const result = await this.db.insert(categories).values(categoryData).returning();
-    const categoryId = result[0].id;
+    const [result] = await this.pool.query(
+        'INSERT INTO categories (name, icon) VALUES (?, ?)',
+        [categoryData.name, categoryData.icon]
+    );
+    const insertResult = result as mysql.ResultSetHeader;
+    const categoryId = insertResult.insertId;
     return this.getCategory(categoryId) as Promise<Category>;
   }
 
   // Platform operations
   async getPlatforms(): Promise<Platform[]> {
-    return this.db.select().from(platforms);
+    const [rows] = await this.pool.query('SELECT * FROM platforms');
+    return rows as Platform[];
   }
 
   async getPlatform(id: number): Promise<Platform | undefined> {
-    const result = await this.db.select().from(platforms).where(eq(platforms.id, id)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM platforms WHERE id = ?',
+        [id]
+    );
+    const platforms = rows as Platform[];
+    return platforms.length ? platforms[0] : undefined;
   }
 
   async createPlatform(platformData: InsertPlatform): Promise<Platform> {
-    const result = await this.db.insert(platforms).values(platformData).returning();
-    const platformId = result[0].id;
+    const [result] = await this.pool.query(
+        'INSERT INTO platforms (name) VALUES (?)',
+        [platformData.name]
+    );
+    const insertResult = result as mysql.ResultSetHeader;
+    const platformId = insertResult.insertId;
     return this.getPlatform(platformId) as Promise<Platform>;
   }
 
   // Cart operations
   async getCartItems(userId: number): Promise<GenericCartItemWithGame[]> {
-    const items = await this.db.select().from(cartItems).where(eq(cartItems.userId, userId));
-    
+    const [rows] = await this.pool.query(
+        'SELECT * FROM cart_items WHERE user_id = ?',
+        [userId]
+    );
+    const cartItems = rows as CartItem[];
+
     const result: CartItemWithGame[] = [];
-    for (const item of items) {
-      const game = await this.db.select().from(games).where(eq(games.id, item.gameId)).limit(1);
-      if (game[0]) {
+    for (const item of cartItems) {
+      const [gameRows] = await this.pool.query(
+          'SELECT * FROM games WHERE id = ?',
+          [item.gameId]
+      );
+      const games = gameRows as Game[];
+      if (games.length) {
         result.push({
           ...item,
-          game: game[0]
+          game: games[0]
         });
       }
     }
-    
+
     return convertCartItemsWithGameToGeneric(result);
   }
 
   async getCartItem(id: number): Promise<CartItem | undefined> {
-    const result = await this.db.select().from(cartItems).where(eq(cartItems.id, id)).limit(1);
-    return result[0];
+    const [rows] = await this.pool.query(
+        'SELECT * FROM cart_items WHERE id = ?',
+        [id]
+    );
+    const cartItems = rows as CartItem[];
+    return cartItems.length ? cartItems[0] : undefined;
   }
 
   async createCartItem(cartItemData: InsertCartItem): Promise<CartItem> {
     // Check if item already exists for this user and game
-    const existingItems = await this.db.select().from(cartItems).where(
-      and(
-        eq(cartItems.userId, cartItemData.userId),
-        eq(cartItems.gameId, cartItemData.gameId)
-      )
-    ).limit(1);
-    
+    const [existingRows] = await this.pool.query(
+        'SELECT * FROM cart_items WHERE user_id = ? AND game_id = ?',
+        [cartItemData.userId, cartItemData.gameId]
+    );
+    const existingItems = existingRows as CartItem[];
+
     if (existingItems.length > 0) {
       // Update quantity
       const existingItem = existingItems[0];
       const newQuantity = existingItem.quantity + (cartItemData.quantity || 1);
-      
-      await this.db.update(cartItems)
-        .set({ quantity: newQuantity })
-        .where(eq(cartItems.id, existingItem.id));
-      
+
+      await this.pool.query(
+          'UPDATE cart_items SET quantity = ? WHERE id = ?',
+          [newQuantity, existingItem.id]
+      );
+
       return this.getCartItem(existingItem.id) as Promise<CartItem>;
     }
-    
+
     // Create new item
-    const result = await this.db.insert(cartItems).values(cartItemData).returning();
-    const cartItemId = result[0].id;
+    const [result] = await this.pool.query(
+        'INSERT INTO cart_items (user_id, game_id, quantity) VALUES (?, ?, ?)',
+        [cartItemData.userId, cartItemData.gameId, cartItemData.quantity || 1]
+    );
+    const insertResult = result as mysql.ResultSetHeader;
+    const cartItemId = insertResult.insertId;
     return this.getCartItem(cartItemId) as Promise<CartItem>;
   }
 
   async updateCartItemQuantity(id: number, quantity: number): Promise<CartItem | undefined> {
-    await this.db.update(cartItems)
-      .set({ quantity })
-      .where(eq(cartItems.id, id));
-    
+    await this.pool.query(
+        'UPDATE cart_items SET quantity = ? WHERE id = ?',
+        [quantity, id]
+    );
+
     return this.getCartItem(id);
   }
 
   async removeCartItem(id: number): Promise<boolean> {
-    await this.db.delete(cartItems).where(eq(cartItems.id, id));
-    return true;
+    const [result] = await this.pool.query(
+        'DELETE FROM cart_items WHERE id = ?',
+        [id]
+    );
+    const deleteResult = result as mysql.ResultSetHeader;
+    return deleteResult.affectedRows > 0;
   }
 
   async clearCart(userId: number): Promise<boolean> {
-    await this.db.delete(cartItems).where(eq(cartItems.userId, userId));
-    return true;
+    const [result] = await this.pool.query(
+        'DELETE FROM cart_items WHERE user_id = ?',
+        [userId]
+    );
+    const deleteResult = result as mysql.ResultSetHeader;
+    return deleteResult.affectedRows > 0;
   }
 
   // Order operations
   async createOrder(orderData: InsertOrder, orderItemsData: InsertOrderItem[]): Promise<Order> {
     try {
-      // Crear orden con returning para obtener el ID
-      const orderResult = await this.db.insert(orders).values(orderData).returning();
-      
-      const orderId = orderResult[0].id;
-      
-      // Crear items de orden
-      for (const item of orderItemsData) {
-        const orderItemWithId = { ...item, orderId };
-        await this.db.insert(orderItems).values(orderItemWithId);
+      // Start a transaction
+      const connection = await this.pool.getConnection();
+      await connection.beginTransaction();
+
+      try {
+        // Create order
+        const [orderResult] = await connection.query(
+            'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
+            [orderData.userId, orderData.total, orderData.status]
+        );
+        const orderInsertResult = orderResult as mysql.ResultSetHeader;
+        const orderId = orderInsertResult.insertId;
+
+        // Create order items
+        for (const item of orderItemsData) {
+          await connection.query(
+              'INSERT INTO order_items (order_id, game_id, quantity, price) VALUES (?, ?, ?, ?)',
+              [orderId, item.gameId, item.quantity, item.price]
+          );
+        }
+
+        // Commit transaction
+        await connection.commit();
+
+        // Get the created order
+        const [orderRows] = await connection.query(
+            'SELECT * FROM orders WHERE id = ?',
+            [orderId]
+        );
+        const orders = orderRows as Order[];
+
+        connection.release();
+        return orders[0];
+      } catch (error) {
+        // Rollback transaction on error
+        await connection.rollback();
+        connection.release();
+        throw error;
       }
-      
-      // Devolver la orden creada
-      const order = await this.getOrder(orderId);
-      return order as unknown as Order;
     } catch (error) {
-      console.error('Error al crear orden:', error);
+      console.error('Error creating order:', error);
       throw error;
     }
   }
 
   async getOrders(userId: number): Promise<Order[]> {
-    return this.db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+    const [rows] = await this.pool.query(
+        'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
+        [userId]
+    );
+    return rows as Order[];
   }
 
   async getOrder(id: number): Promise<GenericOrderWithItems | undefined> {
-    const orderResult = await this.db.select().from(orders).where(eq(orders.id, id)).limit(1);
-    const order = orderResult[0];
-    
-    if (!order) return undefined;
-    
-    const orderItemsResult = await this.db.select().from(orderItems).where(eq(orderItems.orderId, id));
+    const [orderRows] = await this.pool.query(
+        'SELECT * FROM orders WHERE id = ?',
+        [id]
+    );
+    const orders = orderRows as Order[];
+    if (!orders.length) return undefined;
+
+    const order = orders[0];
+
+    // Get order items
+    const [itemRows] = await this.pool.query(
+        'SELECT * FROM order_items WHERE order_id = ?',
+        [id]
+    );
+    const orderItems = itemRows as OrderItem[];
+
+    // Get games for order items
     const items = [];
-    
-    for (const item of orderItemsResult) {
-      const gameResult = await this.db.select().from(games).where(eq(games.id, item.gameId)).limit(1);
-      if (gameResult[0]) {
+    for (const item of orderItems) {
+      const [gameRows] = await this.pool.query(
+          'SELECT * FROM games WHERE id = ?',
+          [item.gameId]
+      );
+      const games = gameRows as Game[];
+      if (games.length) {
         items.push({
           ...item,
-          game: gameResult[0]
+          game: games[0]
         });
       }
     }
-    
-    const result = {
+
+    return convertOrderWithItemsToGeneric({
       ...order,
       items
-    };
-    
-    return convertOrderWithItemsToGeneric(result as OrderWithItems);
+    } as OrderWithItems);
   }
 
-  // Método para cerrar la conexión a la base de datos
+  // Clean up method
   async close() {
     await this.pool.end();
   }
 }
-
-// Las funciones auxiliares se eliminen ya que ahora usamos las importadas directamente de drizzle-orm

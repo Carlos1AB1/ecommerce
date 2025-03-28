@@ -1,13 +1,15 @@
 import type { Express, Request, Response } from "express";
+import { AuthenticateCallback } from 'passport';
+import { IVerifyOptions } from 'passport-local';
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { IStorage } from "./storage";
 import { getMySQLStorage } from "./mysql-config";
 import { z } from "zod";
-import { 
-  insertUserSchema, 
-  insertCartItemSchema, 
-  insertOrderSchema, 
+import {
+  insertUserSchema,
+  insertCartItemSchema,
+  insertOrderSchema,
   insertOrderItemSchema,
   type InsertOrderItem
 } from "@shared/mysql-schema";
@@ -21,7 +23,7 @@ const Session = MemoryStore(session);
 export async function registerRoutes(app: Express, customStorage?: IStorage): Promise<Server> {
   // Usar el almacenamiento proporcionado o el por defecto
   const storageToUse = customStorage || getMySQLStorage();
-  
+
   // Setup session and passport
   setupAuth(app, storageToUse);
 
@@ -69,12 +71,12 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid game ID" });
     }
-    
+
     const game = await storageToUse.getGame(id);
     if (!game) {
       return res.status(404).json({ message: "Game not found" });
     }
-    
+
     res.json(game);
   });
 
@@ -89,12 +91,12 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid category ID" });
     }
-    
+
     const category = await storageToUse.getCategory(id);
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
-    
+
     res.json(category);
   });
 
@@ -118,7 +120,7 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
         ...req.body,
         userId
       });
-      
+
       const item = await storageToUse.createCartItem(cartItemData);
       res.status(201).json(item);
     } catch (error) {
@@ -134,23 +136,23 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid cart item ID" });
     }
-    
+
     const { quantity } = req.body;
     if (typeof quantity !== 'number' || quantity < 1) {
       return res.status(400).json({ message: "Quantity must be a positive number" });
     }
-    
+
     const userId = (req.user as any).id;
     const cartItem = await storageToUse.getCartItem(id);
-    
+
     if (!cartItem) {
       return res.status(404).json({ message: "Cart item not found" });
     }
-    
+
     if (cartItem.userId !== userId) {
       return res.status(403).json({ message: "You don't have permission to update this cart item" });
     }
-    
+
     const updatedItem = await storageToUse.updateCartItemQuantity(id, quantity);
     res.json(updatedItem);
   });
@@ -160,18 +162,18 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid cart item ID" });
     }
-    
+
     const userId = (req.user as any).id;
     const cartItem = await storageToUse.getCartItem(id);
-    
+
     if (!cartItem) {
       return res.status(404).json({ message: "Cart item not found" });
     }
-    
+
     if (cartItem.userId !== userId) {
       return res.status(403).json({ message: "You don't have permission to delete this cart item" });
     }
-    
+
     await storageToUse.removeCartItem(id);
     res.status(204).end();
   });
@@ -186,19 +188,19 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
   app.post("/api/orders", isAuthenticated, async (req, res) => {
     try {
       const userId = (req.user as any).id;
-      
+
       // Validate order data
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId
       });
-      
+
       // Verify cart items exist for this user
       const cartItems = await storageToUse.getCartItems(userId);
       if (cartItems.length === 0) {
         return res.status(400).json({ message: "Cannot create order with empty cart" });
       }
-      
+
       // Create order items from cart
       const orderItemsData: InsertOrderItem[] = cartItems.map(item => ({
         orderId: 0, // Will be set by the storage
@@ -206,13 +208,13 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
         quantity: item.quantity,
         price: item.game.discountedPrice || item.game.price
       }));
-      
+
       // Create order and items
       const order = await storageToUse.createOrder(orderData, orderItemsData);
-      
+
       // Clear cart
       await storageToUse.clearCart(userId);
-      
+
       res.status(201).json(order);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -233,18 +235,18 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid order ID" });
     }
-    
+
     const userId = (req.user as any).id;
     const order = await storageToUse.getOrder(id);
-    
+
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
-    
+
     if (order.userId !== userId) {
       return res.status(403).json({ message: "You don't have permission to view this order" });
     }
-    
+
     res.json(order);
   });
 
@@ -252,11 +254,11 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
   app.get("/api/user/profile", isAuthenticated, async (req, res) => {
     const userId = (req.user as any).id;
     const user = await storageToUse.getUser(userId);
-    
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    
+
     // Don't send password
     const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
@@ -280,29 +282,29 @@ export async function registerRoutes(app: Express, customStorage?: IStorage): Pr
 function setupAuth(app: Express, storageToUse: IStorage) {
   // Configure passport
   passport.use(new LocalStrategy(
-    async (username, password, done) => {
-      try {
-        const user = await storageToUse.getUserByUsername(username);
-        
-        if (!user) {
-          return done(null, false, { message: "Incorrect username" });
+      async (username: string, password: string, done: (error: Error | null, user?: any, options?: IVerifyOptions) => void) => {
+        try {
+          const user = await storage.getUserByUsername(username);
+
+          if (!user) {
+            return done(null, false, { message: "Incorrect username" });
+          }
+
+          if (user.password !== password) {
+            return done(null, false, { message: "Incorrect password" });
+          }
+
+          return done(null, user);
+        } catch (err) {
+          return done(err as Error);
         }
-        
-        if (user.password !== password) { // In a real app, use proper password hashing
-          return done(null, false, { message: "Incorrect password" });
-        }
-        
-        return done(null, user);
-      } catch (err) {
-        return done(err);
       }
-    }
   ));
-  
+
   passport.serializeUser((user: any, done) => {
     done(null, user.id);
   });
-  
+
   passport.deserializeUser(async (id: number, done) => {
     try {
       const user = await storageToUse.getUser(id);
@@ -311,7 +313,7 @@ function setupAuth(app: Express, storageToUse: IStorage) {
       done(err);
     }
   });
-  
+
   // Session setup
   app.use(session({
     cookie: { maxAge: 86400000 },
@@ -320,34 +322,34 @@ function setupAuth(app: Express, storageToUse: IStorage) {
     saveUninitialized: false,
     secret: 'gaming_ecommerce_secret_key'
   }));
-  
+
   app.use(passport.initialize());
   app.use(passport.session());
-  
+
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if username or email already exists
       const existingUsername = await storageToUse.getUserByUsername(userData.username);
       if (existingUsername) {
         return res.status(400).json({ message: "Username already exists" });
       }
-      
+
       const existingEmail = await storageToUse.getUserByEmail(userData.email);
       if (existingEmail) {
         return res.status(400).json({ message: "Email already exists" });
       }
-      
+
       const user = await storageToUse.createUser(userData);
-      
+
       // Log in the user after registration
       req.login(user, (err) => {
         if (err) {
           return res.status(500).json({ message: "Failed to login after registration" });
         }
-        
+
         // Don't send password
         const { password, ...userWithoutPassword } = user;
         return res.status(201).json(userWithoutPassword);
@@ -359,29 +361,29 @@ function setupAuth(app: Express, storageToUse: IStorage) {
       res.status(500).json({ message: "Failed to register user" });
     }
   });
-  
+
   app.post("/api/auth/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: Error | null, user: any, info: IVerifyOptions | undefined) => {
       if (err) {
         return next(err);
       }
-      
+
       if (!user) {
-        return res.status(401).json({ message: info.message || "Authentication failed" });
+        return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
-      
-      req.login(user, (err) => {
+
+      req.login(user, (err: Error | null) => {
         if (err) {
           return next(err);
         }
-        
+
         // Don't send password
         const { password, ...userWithoutPassword } = user;
         return res.json(userWithoutPassword);
       });
     })(req, res, next);
   });
-  
+
   app.post("/api/auth/logout", (req, res) => {
     req.logout((err) => {
       if (err) {

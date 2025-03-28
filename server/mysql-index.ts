@@ -1,55 +1,103 @@
-import express from 'express';
-import { registerRoutes } from './routes';
-import { log } from './vite';
+import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
+import { setupVite, serveStatic, log } from "./vite";
+import { initializeDatabase } from './mysql-config';  // Make sure to import from mysql-config
 import dotenv from 'dotenv';
-import { getMySQLStorage, initializeDatabase } from './mysql-config';
-import { IStorage } from './storage';
 
-// Cargar variables de entorno
+// Load environment variables
 dotenv.config();
 
-async function main() {
-  // Crear la app Express
+async function startServer() {
   const app = express();
-  
-  // Configuración de middleware
   app.use(express.json());
-  
-  // Configurar para usar almacenamiento MySQL
+  app.use(express.urlencoded({ extended: false }));
+
+  // Request logging middleware
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
+
+        log(logLine);
+      }
+    });
+
+    next();
+  });
+
   try {
-    // Inicializar la base de datos MySQL
+    // Initialize the database
     const dbInitialized = await initializeDatabase();
     if (!dbInitialized) {
-      log('Error al inicializar la base de datos MySQL. La aplicación no funcionará correctamente.', 'mysql');
+      log('Failed to initialize database. Please check your database configuration.', 'error');
       process.exit(1);
     }
-    
-    log('Base de datos MySQL inicializada correctamente', 'mysql');
-    
-    // Registrar las rutas con el almacenamiento MySQL
-    // Nota: Aquí puedes proporcionar el almacenamiento MySQL específicamente
-    // para ser utilizado por las rutas en lugar del almacenamiento predeterminado
+
+    log('Database initialized successfully!', 'database');
+
+    // Import routes after database is initialized
+    const { registerRoutes } = await import('./mysql-routes');  // Import from mysql-routes
     const server = await registerRoutes(app);
-    
-    // Iniciar el servidor HTTP
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => {
-      log(`servidor iniciado en puerto ${PORT}`, 'mysql');
+
+    // Error handling middleware
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+
+      log(`Error: ${message}`, 'error');
+      res.status(status).json({ message });
     });
+
+    // Setup Vite only in development
+    if (process.env.NODE_ENV === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    // Start server
+    const port = process.env.PORT || 5000;
+    server.listen(port, () => {
+      log(`Server started on http://localhost:${port}`, 'server');
+    });
+
+    return server;
   } catch (error) {
-    log(`Error al iniciar la aplicación: ${error}`, 'mysql');
+    log(`Failed to start server: ${error}`, 'error');
     process.exit(1);
   }
 }
 
-// Capturar errores no manejados
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
+// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  log(`Uncaught Exception: ${error.message}`, 'error');
+  console.error(error);
+  process.exit(1);
 });
 
-// Iniciar la aplicación
-main();
+process.on('unhandledRejection', (reason, promise) => {
+  log(`Unhandled Rejection at: ${promise}, reason: ${reason}`, 'error');
+  console.error(reason);
+  process.exit(1);
+});
+
+// Start the server
+startServer();

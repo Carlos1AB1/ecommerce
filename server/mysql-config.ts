@@ -1,20 +1,20 @@
 import { MySQLStorage } from './mysql-storage';
 import dotenv from 'dotenv';
+import mysql from 'mysql2/promise';
 
-// Cargar variables de entorno desde .env si existe
+// Load environment variables
 dotenv.config();
 
-// Obtener la configuración de la base de datos
-const dbHost = process.env.PGHOST || 'localhost';
-const dbPort = process.env.PGPORT || '5432';
-const dbUser = process.env.PGUSER || 'postgres';
-const dbPassword = process.env.PGPASSWORD || '';
-const dbName = process.env.PGDATABASE || 'postgres';
+// Get database configuration with MySQL defaults
+const dbHost = process.env.MYSQL_HOST || 'localhost';
+const dbPort = process.env.MYSQL_PORT || '3306';
+const dbUser = process.env.MYSQL_USER || 'root';
+const dbPassword = process.env.MYSQL_PASSWORD || '';
+const dbName = process.env.MYSQL_DATABASE || 'gamevault';
 
-// Usamos la URL de la base de datos, que ya está proporcionada por Replit
-export const mysqlConnectionString = process.env.DATABASE_URL || `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+export const mysqlConnectionString = `mysql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
-// Crear un solo almacenamiento MySQL para toda la aplicación
+// Create a single MySQL storage instance for the entire application
 let _mysqlStorage: MySQLStorage | null = null;
 
 export function getMySQLStorage(): MySQLStorage {
@@ -24,35 +24,44 @@ export function getMySQLStorage(): MySQLStorage {
   return _mysqlStorage;
 }
 
-// Función para inicializar la base de datos
+// Function to initialize the database
 export async function initializeDatabase() {
-  const storage = getMySQLStorage();
-  
   try {
-    console.log('Inicializando la estructura de la base de datos...');
+    console.log('Initializing MySQL database connection...');
+    // Create connection pool
+    const connection = await mysql.createConnection(mysqlConnectionString);
+
+    // Test the connection
+    await connection.query('SELECT 1');
+    console.log('MySQL connection successful!');
+
+    // Close test connection
+    await connection.end();
+
+    // Initialize storage with tables and sample data
+    const storage = getMySQLStorage();
     await storage.initializeDatabase();
-    console.log('Estructura de base de datos inicializada correctamente.');
-    
-    // Verificar si hay datos de ejemplo
+
+    // Check if sample data needs to be loaded
     const categories = await storage.getCategories();
     if (categories.length === 0) {
-      console.log('Inicializando datos de ejemplo...');
+      console.log('Initializing sample data...');
       await storage.initializeWithSampleData();
-      console.log('Datos de ejemplo inicializados correctamente.');
+      console.log('Sample data initialized successfully.');
     }
-    
+
     return true;
   } catch (error) {
-    console.error('Error al inicializar la base de datos:', error);
+    console.error('Error initializing database:', error);
     return false;
   }
 }
 
-// Función para cerrar las conexiones a la base de datos
+// Function to close database connections
 export async function closeDatabaseConnections() {
   if (_mysqlStorage) {
     await _mysqlStorage.close();
     _mysqlStorage = null;
-    console.log('Conexión a la base de datos cerrada correctamente.');
+    console.log('MySQL connection closed successfully.');
   }
 }

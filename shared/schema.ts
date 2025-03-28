@@ -1,57 +1,68 @@
-import { pgTable, text, serial, integer, boolean, doublePrecision, timestamp, json } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import {
+  mysqlTable,
+  text,
+  int,
+  varchar,
+  double,
+  boolean,
+  timestamp,
+  json as mysqlJson,
+  primaryKey,
+  uniqueIndex
+} from 'drizzle-orm/mysql-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull().unique(),
-  name: text("name"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const users = mysqlTable("users", {
+  id: int("id").primaryKey().autoincrement(),
+  username: varchar("username", { length: 255 }).notNull().unique(),
+  password: varchar("password", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   email: true,
-  name: true,
+  name: true
 });
 
-export const categories = pgTable("categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  icon: text("icon"),
+export const categories = mysqlTable("categories", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull(),
+  icon: varchar("icon", { length: 255 })
 });
 
 export const insertCategorySchema = createInsertSchema(categories).pick({
   name: true,
-  icon: true,
+  icon: true
 });
 
-export const platforms = pgTable("platforms", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+export const platforms = mysqlTable("platforms", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull()
 });
 
 export const insertPlatformSchema = createInsertSchema(platforms).pick({
-  name: true,
+  name: true
 });
 
-export const games = pgTable("games", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
+export const games = mysqlTable("games", {
+  id: int("id").primaryKey().autoincrement(),
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
-  price: doublePrecision("price").notNull(),
-  discountedPrice: doublePrecision("discounted_price"),
+  price: double("price").notNull(),
+  discountedPrice: double("discounted_price"),
   imageUrl: text("image_url").notNull(),
-  rating: doublePrecision("rating"),
-  categoryId: integer("category_id").notNull(),
+  rating: double("rating"),
+  categoryId: int("category_id").notNull(),
   isFeatured: boolean("is_featured").default(false),
   isNewRelease: boolean("is_new_release").default(false),
   isTopRated: boolean("is_top_rated").default(false),
-  platforms: json("platforms").notNull().$type<number[]>(),
-  releaseDate: timestamp("release_date"),
+  platforms: mysqlJson("platforms").notNull().$type<number[]>(),
+  releaseDate: timestamp("release_date")
 });
 
 export const insertGameSchema = createInsertSchema(games).pick({
@@ -66,49 +77,49 @@ export const insertGameSchema = createInsertSchema(games).pick({
   isNewRelease: true,
   isTopRated: true,
   platforms: true,
-  releaseDate: true,
+  releaseDate: true
 });
 
-export const cartItems = pgTable("cart_items", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  gameId: integer("game_id").notNull(),
-  quantity: integer("quantity").notNull().default(1),
+export const cartItems = mysqlTable("cart_items", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  gameId: int("game_id").notNull(),
+  quantity: int("quantity").notNull().default(1)
 });
 
 export const insertCartItemSchema = createInsertSchema(cartItems).pick({
   userId: true,
   gameId: true,
-  quantity: true,
+  quantity: true
 });
 
-export const orders = pgTable("orders", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  total: doublePrecision("total").notNull(),
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at").defaultNow(),
+export const orders = mysqlTable("orders", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  total: double("total").notNull(),
+  status: varchar("status", { length: 255 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
 export const insertOrderSchema = createInsertSchema(orders).pick({
   userId: true,
   total: true,
-  status: true,
+  status: true
 });
 
-export const orderItems = pgTable("order_items", {
-  id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull(),
-  gameId: integer("game_id").notNull(),
-  quantity: integer("quantity").notNull(),
-  price: doublePrecision("price").notNull(),
+export const orderItems = mysqlTable("order_items", {
+  id: int("id").primaryKey().autoincrement(),
+  orderId: int("order_id").notNull(),
+  gameId: int("game_id").notNull(),
+  quantity: int("quantity").notNull(),
+  price: double("price").notNull()
 });
 
 export const insertOrderItemSchema = createInsertSchema(orderItems).pick({
   orderId: true,
   gameId: true,
   quantity: true,
-  price: true,
+  price: true
 });
 
 export type Game = typeof games.$inferSelect;

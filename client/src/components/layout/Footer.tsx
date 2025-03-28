@@ -7,11 +7,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <Link href="/">
-              <a className="flex items-center">
+            <Link href="/" className="flex items-center">
                 <FaGamepad className="text-accent text-2xl mr-2" />
                 <span className="font-rajdhani font-bold text-2xl text-white">GameVault</span>
-              </a>
             </Link>
             <p className="text-gray-400 mt-4">
               Tu tienda de videojuegos preferida con los mejores títulos y ofertas especiales.
@@ -36,24 +34,16 @@ export default function Footer() {
             <h3 className="font-rajdhani font-bold text-lg text-white mb-4">Enlaces rápidos</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/">
-                  <a className="text-gray-400 hover:text-white">Inicio</a>
-                </Link>
+                <Link href="/" className="text-gray-400 hover:text-white">Inicio</Link>
               </li>
               <li>
-                <Link href="/category/offers">
-                  <a className="text-gray-400 hover:text-white">Ofertas</a>
-                </Link>
+                <Link href="/category/offers" className="text-gray-400 hover:text-white">Ofertas</Link>
               </li>
               <li>
-                <Link href="/search">
-                  <a className="text-gray-400 hover:text-white">Buscar</a>
-                </Link>
+                <Link href="/search" className="text-gray-400 hover:text-white">Buscar</Link>
               </li>
               <li>
-                <Link href="/cart">
-                  <a className="text-gray-400 hover:text-white">Carrito</a>
-                </Link>
+                <Link href="/cart" className="text-gray-400 hover:text-white">Carrito</Link>
               </li>
             </ul>
           </div>
@@ -62,24 +52,16 @@ export default function Footer() {
             <h3 className="font-rajdhani font-bold text-lg text-white mb-4">Categorías</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/category/1">
-                  <a className="text-gray-400 hover:text-white">Acción</a>
-                </Link>
+                <Link href="/category/1" className="text-gray-400 hover:text-white">Acción</Link>
               </li>
               <li>
-                <Link href="/category/2">
-                  <a className="text-gray-400 hover:text-white">Aventura</a>
-                </Link>
+                <Link href="/category/2" className="text-gray-400 hover:text-white">Aventura</Link>
               </li>
               <li>
-                <Link href="/category/4">
-                  <a className="text-gray-400 hover:text-white">Estrategia</a>
-                </Link>
+                <Link href="/category/4" className="text-gray-400 hover:text-white">Estrategia</Link>
               </li>
               <li>
-                <Link href="/category/6">
-                  <a className="text-gray-400 hover:text-white">Multijugador</a>
-                </Link>
+                <Link href="/category/6" className="text-gray-400 hover:text-white">Multijugador</Link>
               </li>
             </ul>
           </div>
@@ -88,16 +70,16 @@ export default function Footer() {
             <h3 className="font-rajdhani font-bold text-lg text-white mb-4">Ayuda</h3>
             <ul className="space-y-2">
               <li>
-                <a href="#" className="text-gray-400 hover:text-white">Centro de soporte</a>
+                <Link href="/support" className="text-gray-400 hover:text-white">Centro de soporte</Link>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-white">Preguntas frecuentes</a>
+                <Link href="/support/faq" className="text-gray-400 hover:text-white">Preguntas frecuentes</Link>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-white">Política de privacidad</a>
+                <Link href="/privacy" className="text-gray-400 hover:text-white">Política de privacidad</Link>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-white">Términos y condiciones</a>
+                <Link href="/terms" className="text-gray-400 hover:text-white">Términos y condiciones</Link>
               </li>
             </ul>
           </div>

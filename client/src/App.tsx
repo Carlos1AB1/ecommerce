@@ -16,6 +16,10 @@ import CategoryPage from "@/pages/CategoryPage";
 import SearchPage from "@/pages/SearchPage";
 import OrderHistory from "@/pages/OrderHistory";
 import NotFound from "@/pages/not-found";
+import Support from "@/pages/Support";
+import FAQ from "@/pages/FAQ";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 
 function App() {
   return (
@@ -81,6 +85,30 @@ function App() {
             <Route path="/orders">
               <MainLayout>
                 <OrderHistory />
+              </MainLayout>
+            </Route>
+            
+            <Route path="/support">
+              <MainLayout>
+                <Support />
+              </MainLayout>
+            </Route>
+            
+            <Route path="/support/faq">
+              <MainLayout>
+                <FAQ />
+              </MainLayout>
+            </Route>
+            
+            <Route path="/privacy">
+              <MainLayout>
+                <Privacy />
+              </MainLayout>
+            </Route>
+            
+            <Route path="/terms">
+              <MainLayout>
+                <Terms />
               </MainLayout>
             </Route>
             

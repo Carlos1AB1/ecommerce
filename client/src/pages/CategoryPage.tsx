@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import GameGrid from '@/components/game/GameGrid';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Game, Category } from '@shared/schema';
+import GameCard from '@/components/game/GameCard';
 
 export default function CategoryPage() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
-  const categoryId = id === 'offers' || id === 'new-releases' || id === 'top-rated' ? id : parseInt(id);
+  const categoryId = id === 'offers' || id === 'new-releases' || id === 'top-rated' ? id : parseInt(id || '0');
   const [sortBy, setSortBy] = useState("default");
 
   // Fetch all games
@@ -130,11 +130,9 @@ export default function CategoryPage() {
       ) : games.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {games.map(game => (
-            <GameGrid 
+            <GameCard 
               key={game.id} 
-              games={[game]} 
-              title="" 
-              isLoading={false} 
+              game={game} 
             />
           ))}
         </div>

@@ -53,13 +53,11 @@ export default function GameCard({ game }: GameCardProps) {
     <div className="game-card bg-primary-light rounded-lg overflow-hidden shadow-lg hover:transform hover:-translate-y-1 transition-all duration-300">
       <div className="relative">
         <Link href={`/game/${game.id}`}>
-          <a>
             <img 
               src={game.imageUrl} 
               alt={game.title} 
-              className="w-full h-40 object-cover" 
+              className="w-full h-40 object-cover cursor-pointer" 
             />
-          </a>
         </Link>
         {hasDiscount && (
           <div className="absolute top-2 right-2 bg-highlight text-primary font-bold px-2 py-1 rounded text-xs">
@@ -69,9 +67,7 @@ export default function GameCard({ game }: GameCardProps) {
       </div>
       <div className="p-4">
         <Link href={`/game/${game.id}`}>
-          <a>
-            <h3 className="font-rajdhani font-bold text-lg text-white mb-1">{game.title}</h3>
-          </a>
+            <h3 className="font-rajdhani font-bold text-lg text-white mb-1 cursor-pointer">{game.title}</h3>
         </Link>
         <div className="flex text-yellow-500 text-sm mb-2">
           {game.rating ? (

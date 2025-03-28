@@ -1,6 +1,7 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/pg-nodejs';
-import { eq, and, desc, like, sql, or } from 'drizzle-orm';
+import pkg from 'pg';
+const { Pool } = pkg;
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { eq, and, desc, ilike, or, sql } from 'drizzle-orm';
 import { IStorage, GenericGame, GenericCartItemWithGame, GenericOrderWithItems } from './storage';
 import {
   users, games, categories, platforms, cartItems, orders, orderItems,
@@ -168,11 +169,11 @@ export class MySQLStorage implements IStorage {
   }
 
   async searchGames(query: string): Promise<GenericGame[]> {
-    const lowercaseQuery = `%${query.toLowerCase()}%`;
+    const searchPattern = `%${query}%`;
     const gamesResult = await this.db.select().from(games).where(
       or(
-        like(games.title, lowercaseQuery),
-        like(games.description, lowercaseQuery)
+        ilike(games.title, searchPattern),
+        ilike(games.description, searchPattern)
       )
     );
     return convertGamesToGeneric(gamesResult);
@@ -345,15 +346,4 @@ export class MySQLStorage implements IStorage {
   }
 }
 
-// Funciones auxiliares
-function like(column: any, value: string) {
-  return sql`${column} LIKE ${value}`;
-}
-
-function or(...conditions: any[]) {
-  return sql`(${sql.join(conditions, sql` OR `)})`;
-}
-
-function sql(strings: TemplateStringsArray, ...values: any[]) {
-  return { type: 'sql', strings, values };
-}
+// Las funciones auxiliares se eliminen ya que ahora usamos las importadas directamente de drizzle-orm
